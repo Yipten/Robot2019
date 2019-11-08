@@ -237,6 +237,10 @@ public class Elevator {
         return currentVelocity;
     }
 
+    public static double getMotorOutput() {
+        return elevator.getAppliedOutput();
+    }
+
     /**
      * Positions of elevator
      */

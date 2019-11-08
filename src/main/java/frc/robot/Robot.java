@@ -112,7 +112,7 @@ public class Robot extends TimedRobot {
 
 //        Elevator.checkHalSensor();
 //        Elevator.setBrake();
-//        PrettyPrint.print();
+       PrettyPrint.print();
 
         //Camera Controls
 //        prevFrontCamMain = frontCamMain;
@@ -200,9 +200,10 @@ public class Robot extends TimedRobot {
      */
     private void initLog() {
         PrettyPrint.removeAll();
-        PrettyPrint.put("Elev Temp", Elevator::getTemperature);
+        PrettyPrint.put("Elev Output", Elevator::getMotorOutput);
         PrettyPrint.put("Elev RPM", Elevator::getVelocity);
-        PrettyPrint.put("Elev B", Elevator.elevator::getIdleMode);
+        PrettyPrint.put("Elev Temp", Elevator::getTemperature);
+        // PrettyPrint.put("Elev B", Elevator.elevator::getIdleMode);
 //        PrettyPrint.put("Intake volt", Intake.intakeMotor::getMotorOutputVoltage);
 //        PrettyPrint.put("Step", () -> Climber.stepNumL3);
 //        PrettyPrint.put("DT", Drivetrain::getEncoderPosition);
