@@ -200,7 +200,7 @@ public class Robot extends TimedRobot {
      */
     private void initLog() {
         PrettyPrint.removeAll();
-        PrettyPrint.put("Elev Output", Elevator::getMotorOutput);
+        PrettyPrint.put("Elev Output", Elevator::getPercentOutput);
         PrettyPrint.put("Elev RPM", Elevator::getVelocity);
         PrettyPrint.put("Elev Temp", Elevator::getTemperature);
         // PrettyPrint.put("Elev B", Elevator.elevator::getIdleMode);
