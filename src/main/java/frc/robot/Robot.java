@@ -170,25 +170,23 @@ public class Robot extends TimedRobot {
 
     @Override
     public void testInit() {
-        Climber.back.setIdleMode(IdleMode.kCoast);
-        initLog();
-        Elevator.elevator.set(0);
+        Elevator.startThread();
     }
 
     @Override
     public void testPeriodic() {
-//        Elevator.elevator.set(Elevator.gravityFF / 12);
+        OperatorControls.operatorControls();
     }
 
     @Override
     public void disabledInit() {
 //        LineSensor.stopThread();
         Drivetrain.setBrakeMode(false);
-        Elevator.elevator.setIdleMode(IdleMode.kCoast);
+        Elevator.stopThread();
+        // Elevator.elevator.setIdleMode(IdleMode.kCoast);
         Climber.back.setIdleMode(IdleMode.kBrake);
         inEndOfMatch = false;
         PrettyPrint.removeAll();
-        PrettyPrint.put("Elev Temp", Elevator::getTemperature);
     }
 
     @Override

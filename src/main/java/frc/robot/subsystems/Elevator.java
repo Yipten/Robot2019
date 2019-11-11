@@ -7,51 +7,36 @@ import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 import com.revrobotics.ControlType;
 import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.Notifier;
 
 public class Elevator {
+    public static Notifier thread;
+
     public static final CANSparkMax elevator;
     public static final CANEncoder elevatorEncoder;
     // public static final DigitalInput halSensor;
 
     private static double setPosition, prevPosition, zeroPosition;
-    private static double prevVelocity, currentVelocity;
-    private static double currentAcceleration;
-    public static final double gravityFF = 0.05 * 12; // .375
+    private static double distance;
+    private static boolean goingUp, atMaxSpeed, finished;
+    // public static final double gravityFF = 0.05 * 12; // .375
 
     private static final double UP_ACCEL = 0.1; // increase in percent output per encoder tick TODO: find actual value
-    private static final double DOWN_ACCEL = 0.1;   //TODO: find actual value
+    private static final double DOWN_ACCEL = 0.1; // TODO: find actual value
     private static final double STAGE_THRESHOLD = 30.0;
     public static final double MAX_POSITION = 47.5;
     private static final double DEADBAND = 0.26;
-//    private static final double HATCH_DROP_OFFSET = 3.2;
-//    private static final double HATCH_PLACE_OFFSET = 1.5; //1.2
-
-//    private static final double highAccel = 30000;
-//    private static final double mediumAccel = 10000; // was 13000
-//    private static final double slowMediumAccel = 6000; // was 11000
-//    private static final double lowAccel = 3000; // was 7000
-
-    // private static final double avagadrosVelocity = 6.02E23;
-    private static boolean goingDown;
-
-    public static boolean setHatchDrop, setHatchPlace, overriding; //TODO do we actually use all of these?
 
     /**
      * Positions of elevator
      */
     public enum Position {
-        ELEVATOR_FLOOR(0.0),
-        HATCH_LEVEL_ONE(0.0),
-        HATCH_LEVEL_TWO(23.5),
-        HATCH_LEVEL_THREE(45.3),
-        CARGO_LEVEL_ONE(17.0),
-        CARGO_LEVEL_TWO(39.0),
-        CARGO_LEVEL_THREE(47.0),
-        CARGO_SHIP(33.0),
+        ELEVATOR_FLOOR(0.0), HATCH_LEVEL_ONE(0.0), HATCH_LEVEL_TWO(23.5), HATCH_LEVEL_THREE(45.3),
+        CARGO_LEVEL_ONE(17.0), CARGO_LEVEL_TWO(39.0), CARGO_LEVEL_THREE(47.0), CARGO_SHIP(33.0),
         ELEVATOR_COLLECT_CARGO(7.7),
-        //        ELEVATOR_COLLECT_HATCH(HATCH_DROP_OFFSET + HATCH_PLACE_OFFSET);
-        ELEVATOR_COLLECT_HATCH(0.5); //???Do we need this? TODO possibly remove?
-        
+        // ELEVATOR_COLLECT_HATCH(HATCH_DROP_OFFSET + HATCH_PLACE_OFFSET);
+        ELEVATOR_COLLECT_HATCH(0.5); // ???Do we need this? TODO possibly remove?
+
         public double value;
 
         Position(double position) {
@@ -60,14 +45,15 @@ public class Elevator {
     }
 
     /**
-     * Initializes the elevator motor and zeros the elevator
-     * encoder
+     * Initializes the elevator motor and zeros the elevator encoder
      */
     static {
         elevator = new CANSparkMax(5, MotorType.kBrushless);
         elevator.setInverted(false);
         elevator.setIdleMode(IdleMode.kBrake);
-//        elevator.enableVoltageCompensation(13.00); //TODO Sydney made this 13 (not 12) because it is slower when charged and I think this is why? - battery always starts above 12v
+        // elevator.enableVoltageCompensation(13.00); //TODO Sydney made this 13 (not
+        // 12) because it is slower when charged and I think this is why? - battery
+        // always starts above 12v
         elevator.setSmartCurrentLimit(60);
 
         elevatorEncoder = new CANEncoder(elevator);
@@ -77,49 +63,52 @@ public class Elevator {
         setPosition = elevatorEncoder.getPosition();
         prevPosition = elevatorEncoder.getPosition();
         zeroPosition = elevatorEncoder.getPosition();
-        prevVelocity = 0;
 
-        setHatchDrop = false;
-        setHatchPlace = false;
-        overriding = false;
+        thread = new Notifier(() -> update());
+    }
+
+    public static void startThread() {
+        thread.startPeriodic(0.02);
+    }
+
+    public static void stopThread() {
+        thread.stop();
     }
 
     /**
-     * Sets the elevator to the entered value
-     *
-     * @param targetPosition: desired elevator value
+     * Updates speed of elevator based on setpoint
      */
-    public static void setPosition(double targetPosition) {
-        if (targetPosition <= getPosition()) { // down
-            goingDown = true;
-            if (getPosition() - targetPosition < 25)  // down medium
-                if (getPosition() - targetPosition < 4)  // down short
-                    elevator.getPIDController().setSmartMotionMaxAccel(7_500, 0);
-                else
-                    elevator.getPIDController().setSmartMotionMaxAccel(7_500, 0);
-            else  // down big
-                elevator.getPIDController().setSmartMotionMaxAccel(6_500, 0);
-        } else { // up
-            goingDown = false;
-            if (targetPosition - getPosition() < 25)  // up medium
-                elevator.getPIDController().setSmartMotionMaxAccel(16_000, 0); // 400_000, 0);
-            else  // up high
-                elevator.getPIDController().setSmartMotionMaxAccel(16_000, 0); // 400_000, 0);
-        }
-
-        if (!setHatchPlace) { //TODO this makes it so that placing works after the elevator zeros - Sydney (I'm an idiot)
-            setPosition = targetPosition + zeroPosition;
-        } else {
-            setPosition = targetPosition;
-        }
-
-        if (!overriding) {
-            limitPosition();
-        } else {
-            limitPositionOverride();
-        }
-        setHatchDrop = false;
-        setHatchPlace = false;
+    public static void update() {
+        if (!finished)
+            if (goingUp) {
+                if (!atMaxSpeed) {
+                    setPercentOutput(getPercentOutput() + UP_ACCEL * getPositionDiff());
+                    if (getPercentOutput() >= 1.0) {
+                        setPercentOutput(1.0);
+                        atMaxSpeed = true;
+                    }
+                } else if (Math.abs(setPosition - getPosition()) <= 1.0 / UP_ACCEL) {
+                    setPercentOutput(getPercentOutput() - UP_ACCEL * getPositionDiff());
+                    if (getPercentOutput() <= 0.0) {
+                        setPercentOutput(0.0);
+                        finished = true;
+                    }
+                }
+            } else {
+                if (!atMaxSpeed) {
+                    setPercentOutput(getPercentOutput() + DOWN_ACCEL * getPositionDiff());
+                    if (getPercentOutput() <= -1.0) {
+                        setPercentOutput(-1.0);
+                        atMaxSpeed = true;
+                    }
+                } else if (Math.abs(setPosition - getPosition()) <= 1.0 / DOWN_ACCEL) {
+                    setPercentOutput(getPercentOutput() - DOWN_ACCEL * getPositionDiff());
+                    if (getPercentOutput() >= 0.0) {
+                        setPercentOutput(0.0);
+                        finished = true;
+                    }
+                }
+            }
     }
 
     /**
@@ -132,44 +121,57 @@ public class Elevator {
     }
 
     /**
+     * Sets the elevator to the entered value
+     *
+     * @param targetPosition: desired elevator value
+     */
+    public static void setPosition(double targetPosition) {
+        setPosition = targetPosition;
+        distance = setPosition - getPosition();
+        goingUp = distance > 0;
+        atMaxSpeed = false;
+        finished = false;
+    }
+
+    /**
      * moves the elevator at a speed (percent output)
      *
      * @param speed: speed of the elevator (-1.0 to 1.0)
      */
-    public static void moveSpeed(double speed) {
-//        elevator.set(speed);
-        setPosition += (0.7 * speed);
-        overriding = true;
-        setHatchPlace = true;
-        setPosition(setPosition);
+    public static void setPercentOutput(double speed) {
+        elevator.set(speed);
     }
 
-    /**
-     * Prevents the user from going past the max/min value of the elevator
-     */
-    private static void limitPosition() {
-        setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
-        setPosition = Math.max(setPosition, zeroPosition);
-        if (goingDown) {
-            elevator.getPIDController().setReference(setPosition, ControlType.kSmartMotion);
-        } else {
-            elevator.getPIDController().setReference(setPosition, ControlType.kSmartMotion, 0, gravityFF * 2);
-        }
-    }
+    // /**
+    // * Prevents the user from going past the max/min value of the elevator
+    // */
+    // private static void limitPosition() {
+    // setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
+    // setPosition = Math.max(setPosition, zeroPosition);
+    // if (goingDown) {
+    // elevator.getPIDController().setReference(setPosition,
+    // ControlType.kSmartMotion);
+    // } else {
+    // elevator.getPIDController().setReference(setPosition,
+    // ControlType.kSmartMotion, 0, gravityFF * 2);
+    // }
+    // }
 
-    /**
-     * Prevents the user from going past the maximum value of the elevator
-     */
-    private static void limitPositionOverride() {
-        setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
-        elevator.getPIDController().setReference(setPosition, ControlType.kSmartMotion, 0, gravityFF);
-    }
+    // /**
+    // * Prevents the user from going past the maximum value of the elevator
+    // */
+    // private static void limitPositionOverride() {
+    // setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
+    // elevator.getPIDController().setReference(setPosition,
+    // ControlType.kSmartMotion, 0, gravityFF);
+    // }
 
     /**
      * @return the position of the elevator
      */
     public static double getPosition() {
-        return elevatorEncoder.getPosition()/* - zeroPosition*/; // removed to try to fix problem switch back if manual override does a bad
+        return elevatorEncoder.getPosition()/* - zeroPosition */; // removed to try to fix problem switch back if manual
+                                                                  // override does a bad
     }
 
     /**
@@ -194,8 +196,8 @@ public class Elevator {
      */
     public static void stop() {
         setPosition(getPosition()); // if this is bad change it back
-//        setPosition = elevatorEncoder.getPosition();
-//        setPosition(setPosition);
+        // setPosition = elevatorEncoder.getPosition();
+        // setPosition(setPosition);
     }
 
     /**
@@ -223,7 +225,7 @@ public class Elevator {
      * Sets the current elevator position to the new zero
      */
     public static void resetEncoder() {
-//        elevator.setEncPosition(0);
+        // elevator.setEncPosition(0);
         zeroPosition = elevatorEncoder.getPosition();
         setPosition = Position.ELEVATOR_FLOOR.value;
         setPosition(setPosition);
@@ -233,30 +235,23 @@ public class Elevator {
      * @return belt speed in inches per second
      */
     public static double getBeltVelocity() {
-        final double kNeoToBelt = 16.213 / 60 /*min to sec*/ / 25.4 /*mm to inch*/;
+        final double kNeoToBelt = 16.213 / 60 /* min to sec */ / 25.4 /* mm to inch */;
         return kNeoToBelt * elevatorEncoder.getVelocity();
     }
 
     // /**
-    //  * Zeros the elevator if Hal Sensor is triggered, must be ran in robotPeriodic
-    //  */
+    // * Zeros the elevator if Hal Sensor is triggered, must be ran in robotPeriodic
+    // */
     // public static void checkHalSensor() {
-    //     if (!halSensor.get()) {
-    //         zeroPosition = elevatorEncoder.getPosition() - 8.6; //9.6
-    //         setPosition = setPosition + zeroPosition;
-    //         limitPosition();
-    //     }
+    // if (!halSensor.get()) {
+    // zeroPosition = elevatorEncoder.getPosition() - 8.6; //9.6
+    // setPosition = setPosition + zeroPosition;
+    // limitPosition();
+    // }
     // }
 
     public static double getVelocity() {
-        prevVelocity = currentVelocity;
-        currentVelocity = elevatorEncoder.getVelocity();
-        return currentVelocity;
-    }
-
-    public static double getAcceleration() {
-        currentAcceleration = (currentVelocity - prevVelocity) / .02;
-        return currentAcceleration;
+        return elevatorEncoder.getVelocity();
     }
 
     public static double getTemperature() {
