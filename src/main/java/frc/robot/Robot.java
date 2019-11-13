@@ -71,7 +71,7 @@ public class Robot extends TimedRobot {
     private boolean inEndOfMatch;
 
     private double startTime;
-    private double timeStamp;   //for LED color
+    private double timeStamp; // for LED color
 
     @Override
     public void robotInit() {
@@ -92,54 +92,55 @@ public class Robot extends TimedRobot {
 
     @Override
     public void robotPeriodic() {
-        //set pattern of LEDs
+        // set pattern of LEDs
         if (inEndOfMatch)
             Arduino.setPattern(3);
         else
             Arduino.setPattern(2);
 
-        //set diagnostic part of LEDs
+        // set diagnostic part of LEDs
         if (Intake.isCargoPresent())
             Arduino.setDiagnosticPattern(Arduino.Colors.Orange, 1);
-//        else if (Intake.intakeRunning())
-//            Arduino.setDiagnosticPattern(Arduino.Colors.Orange, 2);
-//        else if (LineSensor.isBroken())
-//            Arduino.setDiagnosticPattern(Arduino.Colors.Red, 2);
+        // else if (Intake.intakeRunning())
+        // Arduino.setDiagnosticPattern(Arduino.Colors.Orange, 2);
+        // else if (LineSensor.isBroken())
+        // Arduino.setDiagnosticPattern(Arduino.Colors.Red, 2);
         else if (LineSensor.isLineSeen())
             Arduino.setDiagnosticPattern(Arduino.Colors.Green, 1);
         else
             Arduino.setDiagnosticPattern(null, 0);
 
-//        Elevator.checkHalSensor();
-//        Elevator.setBrake();
-       PrettyPrint.print();
+        // Elevator.checkHalSensor();
+        // Elevator.setBrake();
+        PrettyPrint.print();
 
-        //Camera Controls
-//        prevFrontCamMain = frontCamMain;
-//        if (DriverControls.singletonInstance.getRightYAxis() < -.2) {
-//            frontCamMain = true;
-//        } else if (DriverControls.singletonInstance.getRightYAxis() > .2) {
-//            frontCamMain = false;
-//        }
+        // Camera Controls
+        // prevFrontCamMain = frontCamMain;
+        // if (DriverControls.singletonInstance.getRightYAxis() < -.2) {
+        // frontCamMain = true;
+        // } else if (DriverControls.singletonInstance.getRightYAxis() > .2) {
+        // frontCamMain = false;
+        // }
 
-//            cameraSelector.setDefaultBoolean("camera", frontCamMain);//Want to control camera later
-//        cameraSwitch.setBoolean(frontCamMain);
+        // cameraSelector.setDefaultBoolean("camera", frontCamMain);//Want to control
+        // camera later
+        // cameraSwitch.setBoolean(frontCamMain);
 
         // TODO
-//        if (frontCamMain != prevFrontCamMain) { // has changed
-//            camTab.getComponents().clear();
-//            if (frontCamMain) {
-//                camTab.add(frontCam);
-//            } else {
-//                camTab.add(backCam);
-//            }
-//        }
+        // if (frontCamMain != prevFrontCamMain) { // has changed
+        // camTab.getComponents().clear();
+        // if (frontCamMain) {
+        // camTab.add(frontCam);
+        // } else {
+        // camTab.add(backCam);
+        // }
+        // }
     }
 
     @Override
     public void autonomousInit() {
         initLog();
-//        Elevator.elevator.setIdleMode(IdleMode.kBrake);
+        // Elevator.elevator.setIdleMode(IdleMode.kBrake);
         Arm.setPosition(STARTING_CONFIG);
         Elevator.setPosition(ELEVATOR_FLOOR);
         Arduino.setAllianceColor(DriverStation.getInstance().getAlliance());
@@ -167,20 +168,23 @@ public class Robot extends TimedRobot {
         OperatorControls.operatorControls();
     }
 
-
     @Override
     public void testInit() {
+        initLog();
         Elevator.startThread();
+        Arm.setPosition(STARTING_CONFIG);
     }
 
     @Override
     public void testPeriodic() {
+        DriverControls.driverControls();
         OperatorControls.operatorControls();
+        PrettyPrint.print();
     }
 
     @Override
     public void disabledInit() {
-//        LineSensor.stopThread();
+        // LineSensor.stopThread();
         Drivetrain.setBrakeMode(false);
         Elevator.stopThread();
         // Elevator.elevator.setIdleMode(IdleMode.kCoast);
@@ -198,22 +202,24 @@ public class Robot extends TimedRobot {
      */
     private void initLog() {
         PrettyPrint.removeAll();
+        PrettyPrint.put("Elev Setpoint", Elevator::getSetPosition);
         PrettyPrint.put("Elev Output", Elevator::getPercentOutput);
-        PrettyPrint.put("Elev RPM", Elevator::getVelocity);
-        PrettyPrint.put("Elev Temp", Elevator::getTemperature);
+        PrettyPrint.put("Elev Finished", Elevator::getFinished);
+        // PrettyPrint.put("Elev RPM", Elevator::getVelocity);
+        // PrettyPrint.put("Elev Temp", Elevator::getTemperature);
         // PrettyPrint.put("Elev B", Elevator.elevator::getIdleMode);
-//        PrettyPrint.put("Intake volt", Intake.intakeMotor::getMotorOutputVoltage);
-//        PrettyPrint.put("Step", () -> Climber.stepNumL3);
-//        PrettyPrint.put("DT", Drivetrain::getEncoderPosition);
-//        PrettyPrint.put("Vel", Drivetrain::getEncoderVelocity);
-//        PrettyPrint.put("Front", Climber::getFrontEncPosition);
-//        PrettyPrint.put("Back", Climber::getBackEncPosition);
-//        PrettyPrint.put("IR", () -> !Climber.backIRSensor.get());
-//        PrettyPrint.put("CargoSensor", Intake::isCargoPresent);
-//        PrettyPrint.put("elev position", Elevator::getPosition);
-//        PrettyPrint.put("hal sensor", Elevator.halSensor::get);
-//        PrettyPrint.put("total", LineSensor::getTotal);
-//        PrettyPrint.put("position", LineSensor::getLinePosition);
-//        PrettyPrint.put("turn speed", LineSensor::getTurnSpeed);
+        // PrettyPrint.put("Intake volt", Intake.intakeMotor::getMotorOutputVoltage);
+        // PrettyPrint.put("Step", () -> Climber.stepNumL3);
+        // PrettyPrint.put("DT", Drivetrain::getEncoderPosition);
+        // PrettyPrint.put("Vel", Drivetrain::getEncoderVelocity);
+        // PrettyPrint.put("Front", Climber::getFrontEncPosition);
+        // PrettyPrint.put("Back", Climber::getBackEncPosition);
+        // PrettyPrint.put("IR", () -> !Climber.backIRSensor.get());
+        // PrettyPrint.put("CargoSensor", Intake::isCargoPresent);
+        // PrettyPrint.put("elev position", Elevator::getPosition);
+        // PrettyPrint.put("hal sensor", Elevator.halSensor::get);
+        // PrettyPrint.put("total", LineSensor::getTotal);
+        // PrettyPrint.put("position", LineSensor::getLinePosition);
+        // PrettyPrint.put("turn speed", LineSensor::getTurnSpeed);
     }
 }

@@ -1,5 +1,7 @@
 package frc.robot.subsystems;
 
+import javax.lang.model.util.ElementScanner6;
+
 import com.revrobotics.CANEncoder;
 import com.revrobotics.CANPIDController.AccelStrategy;
 import com.revrobotics.CANSparkMax.IdleMode;
@@ -8,6 +10,7 @@ import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 import com.revrobotics.ControlType;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Notifier;
+import edu.wpi.first.wpilibj.Timer;
 
 public class Elevator {
     public static Notifier thread;
@@ -16,13 +19,15 @@ public class Elevator {
     public static final CANEncoder elevatorEncoder;
     // public static final DigitalInput halSensor;
 
+    private static Timer timer;
     private static double setPosition, prevPosition, zeroPosition;
     private static double distance;
     private static boolean goingUp, atMaxSpeed, finished;
+    
     // public static final double gravityFF = 0.05 * 12; // .375
 
-    private static final double UP_ACCEL = 0.1; // increase in percent output per encoder tick TODO: find actual value
-    private static final double DOWN_ACCEL = 0.1; // TODO: find actual value
+    private static final double UP_ACCEL = 0.1; // increase in percent output per second
+    private static final double DOWN_ACCEL = 0.1;
     private static final double STAGE_THRESHOLD = 30.0;
     public static final double MAX_POSITION = 47.5;
     private static final double DEADBAND = 0.26;
@@ -65,6 +70,8 @@ public class Elevator {
         zeroPosition = elevatorEncoder.getPosition();
 
         thread = new Notifier(() -> update());
+
+        timer = new Timer();
     }
 
     public static void startThread() {
@@ -81,34 +88,42 @@ public class Elevator {
     public static void update() {
         if (!finished)
             if (goingUp) {
-                if (!atMaxSpeed) {
-                    setPercentOutput(getPercentOutput() + UP_ACCEL * getPositionDiff());
-                    if (getPercentOutput() >= 1.0) {
-                        setPercentOutput(1.0);
-                        atMaxSpeed = true;
-                    }
-                } else if (Math.abs(setPosition - getPosition()) <= 1.0 / UP_ACCEL) {
-                    setPercentOutput(getPercentOutput() - UP_ACCEL * getPositionDiff());
+                if (Math.abs(setPosition - getPosition()) <= 1.0 / UP_ACCEL) {
+                    setPercentOutput(getPercentOutput() - UP_ACCEL * getTimeDiff());
                     if (getPercentOutput() <= 0.0) {
                         setPercentOutput(0.0);
                         finished = true;
                     }
-                }
-            } else {
-                if (!atMaxSpeed) {
-                    setPercentOutput(getPercentOutput() + DOWN_ACCEL * getPositionDiff());
-                    if (getPercentOutput() <= -1.0) {
-                        setPercentOutput(-1.0);
+                } else if (!atMaxSpeed) {
+                    setPercentOutput(getPercentOutput() + UP_ACCEL * getTimeDiff());
+                    if (getPercentOutput() >= 1.0) {
+                        setPercentOutput(1.0);
                         atMaxSpeed = true;
                     }
-                } else if (Math.abs(setPosition - getPosition()) <= 1.0 / DOWN_ACCEL) {
-                    setPercentOutput(getPercentOutput() - DOWN_ACCEL * getPositionDiff());
+                }
+            } else {
+                if (Math.abs(setPosition - getPosition()) <= 1.0 / DOWN_ACCEL) {
+                    setPercentOutput(getPercentOutput() - DOWN_ACCEL * getTimeDiff());
                     if (getPercentOutput() >= 0.0) {
                         setPercentOutput(0.0);
                         finished = true;
                     }
+                } else if (!atMaxSpeed) {
+                    setPercentOutput(getPercentOutput() + DOWN_ACCEL * getTimeDiff());
+                    if (getPercentOutput() <= -1.0) {
+                        setPercentOutput(-1.0);
+                        atMaxSpeed = true;
+                    }
                 }
             }
+        else {
+            timer.stop();
+            timer.reset();
+        }
+    }
+
+    public static boolean getFinished() {
+        return finished;
     }
 
     /**
@@ -131,6 +146,10 @@ public class Elevator {
         goingUp = distance > 0;
         atMaxSpeed = false;
         finished = false;
+
+        // setPercentOutput(goingUp ? UP_ACCEL * 10 : -DOWN_ACCEL * 10);
+        timer.reset();
+        timer.start();
     }
 
     /**
@@ -185,6 +204,17 @@ public class Elevator {
     }
 
     /**
+     * @return difference in time since last check (in seconds)
+     */
+    public static double getTimeDiff() {
+        double timeDiff = timer.get();
+        timer.stop();
+        timer.reset();
+        timer.start();
+        return timeDiff;
+    }
+
+    /**
      * @return true if the elevator is within deadband of its set value
      */
     public static boolean atSetPosition() {
@@ -211,7 +241,7 @@ public class Elevator {
      * @return the set point of the elevator
      */
     public static double getSetPosition() {
-        return setPosition - zeroPosition;
+        return setPosition;// - zeroPosition;
     }
 
     /**
