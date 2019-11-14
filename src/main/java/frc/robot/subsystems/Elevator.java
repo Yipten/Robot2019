@@ -1,14 +1,10 @@
 package frc.robot.subsystems;
 
-import javax.lang.model.util.ElementScanner6;
-
 import com.revrobotics.CANEncoder;
-import com.revrobotics.CANPIDController.AccelStrategy;
-import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
-import com.revrobotics.ControlType;
-import edu.wpi.first.wpilibj.DigitalInput;
+
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.Timer;
 
@@ -17,6 +13,7 @@ public class Elevator {
 
     public static final CANSparkMax elevator;
     public static final CANEncoder elevatorEncoder;
+    // public static final CANPIDController pidController;
     // public static final DigitalInput halSensor;
 
     private static Timer timer;
