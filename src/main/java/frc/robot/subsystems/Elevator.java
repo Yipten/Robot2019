@@ -2,282 +2,250 @@ package frc.robot.subsystems;
 
 import com.revrobotics.CANEncoder;
 import com.revrobotics.CANPIDController;
-import com.revrobotics.CANSparkMax; 
+import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+import com.revrobotics.ControlType;
 
 import edu.wpi.first.wpilibj.Notifier;
-import edu.wpi.first.wpilibj.Timer;
 
 public class Elevator {
-    public static Notifier thread;
+	public static Notifier thread;
 
-    public static final CANSparkMax elevator;
-    public static final CANEncoder elevatorEncoder;
-    public static final CANPIDController pidController;
-    // public static final DigitalInput halSensor;
+	public static final CANSparkMax elevator;
+	public static final CANEncoder elevatorEncoder;
+	public static final CANPIDController elevatorPid;
+	// public static final DigitalInput halSensor;
 
-    private static Timer timer;
-    private static double setPosition, prevPosition, zeroPosition;
-    private static double distance;
-    private static boolean goingUp, atMaxSpeed, finished;
-    
-    // public static final double gravityFF = 0.05 * 12; // .375
+	private static double setPosition, zeroPosition;
+	private static double velocity;
+	private static boolean goingUp, moving;
 
-    private static final double UP_ACCEL = 0.1; // increase in percent output per second
-    private static final double DOWN_ACCEL = 0.1;
-    private static final double STAGE_THRESHOLD = 30.0;
-    public static final double MAX_POSITION = 47.5;
-    private static final double DEADBAND = 0.26;
+	// public static final double gravityFF = 0.05 * 12; // .375
 
-    /**
-     * Positions of elevator
-     */
-    public enum Position {
-        ELEVATOR_FLOOR(0.0), HATCH_LEVEL_ONE(0.0), HATCH_LEVEL_TWO(23.5), HATCH_LEVEL_THREE(45.3),
-        CARGO_LEVEL_ONE(17.0), CARGO_LEVEL_TWO(39.0), CARGO_LEVEL_THREE(47.0), CARGO_SHIP(33.0),
-        ELEVATOR_COLLECT_CARGO(7.7),
-        // ELEVATOR_COLLECT_HATCH(HATCH_DROP_OFFSET + HATCH_PLACE_OFFSET);
-        ELEVATOR_COLLECT_HATCH(0.5); // ???Do we need this? TODO possibly remove?
+	private static final double UP_ACCEL = 1000;
+	private static final double DOWN_ACCEL = 1000;
+	private static final double MAX_VELOCITY = 1000;
+	private static final double STAGE_THRESHOLD = 30.0;
+	public static final double MAX_POSITION = 47.5;
+	private static final double DEADBAND = 0.26;
 
-        public double value;
+	/**
+	 * Positions of elevator.
+	 */
+	public enum Position {
+		ELEVATOR_FLOOR(0.0), HATCH_LEVEL_ONE(0.0), HATCH_LEVEL_TWO(23.5), HATCH_LEVEL_THREE(45.3),
+		CARGO_LEVEL_ONE(17.0), CARGO_LEVEL_TWO(39.0), CARGO_LEVEL_THREE(47.0), CARGO_SHIP(33.0),
+		ELEVATOR_COLLECT_CARGO(7.7),
+		// ELEVATOR_COLLECT_HATCH(HATCH_DROP_OFFSET + HATCH_PLACE_OFFSET);
+		ELEVATOR_COLLECT_HATCH(0.5); // ???Do we need this? TODO possibly remove?
 
-        Position(double position) {
-            value = position;
-        }
-    }
+		public double value;
 
-    /**
-     * Initializes the elevator motor and zeros the elevator encoder
-     */
-    static {
-        elevator = new CANSparkMax(5, MotorType.kBrushless);
-        elevator.setInverted(false);
-        elevator.setIdleMode(IdleMode.kBrake);
-        // elevator.enableVoltageCompensation(13.00); //TODO Sydney made this 13 (not
-        // 12) because it is slower when charged and I think this is why? - battery
-        // always starts above 12v
-        elevator.setSmartCurrentLimit(60);
+		Position(double position) {
+			value = position;
+		}
+	}
 
-        elevatorEncoder = new CANEncoder(elevator);
-        // halSensor = new DigitalInput(3);
-        pidController = new CANPIDController(elevator);
+	/**
+	 * Initializes the elevator motor and zeros the elevator encoder.
+	 */
+	static {
+		elevator = new CANSparkMax(5, MotorType.kBrushless);
+		elevator.setInverted(false);
+		elevator.setIdleMode(IdleMode.kCoast);
+		// elevator.enableVoltageCompensation(13.00); //TODO Sydney made this 13 (not
+		// 12) because it is slower when charged and I think this is why? - battery
+		// always starts above 12v
+		elevator.setSmartCurrentLimit(60);
 
-        elevator.setEncPosition(0);
-        setPosition = elevatorEncoder.getPosition();
-        prevPosition = elevatorEncoder.getPosition();
-        zeroPosition = elevatorEncoder.getPosition();
+		elevatorEncoder = new CANEncoder(elevator);
+		// halSensor = new DigitalInput(3);
+		elevatorPid = new CANPIDController(elevator);
+		elevatorPid.setP(0.001);
+		elevatorPid.setI(0.0);
+		elevatorPid.setD(0.0);
+		elevatorPid.setFF(0.0);
 
-        timer = new Timer();
-    }
+		elevator.setEncPosition(0);
+		setPosition = 0;
+		zeroPosition = 0;
 
-    /**
-     * Updates speed of elevator based on setpoint
-     */
-    public static void update() {
-        if (!finished)
-            if (goingUp) {
-                if (Math.abs(setPosition - getPosition()) <= 1.0 / UP_ACCEL) {
-                    setPercentOutput(getPercentOutput() - UP_ACCEL * getTimeDiff());
-                    if (getPercentOutput() <= 0.0) {
-                        setPercentOutput(0.0);
-                        finished = true;
-                    }
-                } else if (!atMaxSpeed) {
-                    setPercentOutput(getPercentOutput() + UP_ACCEL * getTimeDiff());
-                    if (getPercentOutput() >= 1.0) {
-                        setPercentOutput(1.0);
-                        atMaxSpeed = true;
-                    }
-                }
-            } else {
-                if (Math.abs(setPosition - getPosition()) <= 1.0 / DOWN_ACCEL) {
-                    setPercentOutput(getPercentOutput() - DOWN_ACCEL * getTimeDiff());
-                    if (getPercentOutput() >= 0.0) {
-                        setPercentOutput(0.0);
-                        finished = true;
-                    }
-                } else if (!atMaxSpeed) {
-                    setPercentOutput(getPercentOutput() + DOWN_ACCEL * getTimeDiff());
-                    if (getPercentOutput() <= -1.0) {
-                        setPercentOutput(-1.0);
-                        atMaxSpeed = true;
-                    }
-                }
-            }
-        else {
-            timer.stop();
-            timer.reset();
-        }
-    }
+		velocity = 0;
+		moving = false;
+	}
 
-    public static boolean getFinished() {
-        return finished;
-    }
+	/**
+	 * Updates speed of elevator based on the target position.
+	 */
+	public static void update() {
+		if (moving)
+			// time to slow down
+			if (Math.abs(setPosition - getPosition()) <= getStopDistace()) {
+				velocity -= (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
+				if (velocity <= 0.0) {
+					velocity = 0.0;
+					moving = false;
+				}
+				// slower than max velocity
+			} else if (velocity < MAX_VELOCITY)
+				velocity += (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
+			// at max velocity
+			else if (velocity > MAX_VELOCITY)
+				velocity = MAX_VELOCITY;
+		elevatorPid.setReference(goingUp ? velocity : -velocity, ControlType.kVelocity); // TODO: try using Smart
+																							// Velocity
+	}
 
-    /**
-     * Sets the elevator to the entered position
-     *
-     * @param position desired elevator position
-     */
-    public static void setPosition(Position position) {
-        setPosition(position.value);
-    }
+	public static boolean isMoving() { // TODO: maybe won't actually need this
+		return moving;
+	}
 
-    /**
-     * Sets the elevator to the entered value
-     *
-     * @param targetPosition: desired elevator value
-     */
-    public static void setPosition(double targetPosition) {
-        setPosition = targetPosition;
-        distance = setPosition - getPosition();
-        goingUp = distance > 0;
-        atMaxSpeed = false;
-        finished = false;
+	/**
+	 * Sets the elevator to the entered position.
+	 *
+	 * @param position Desired elevator position.
+	 */
+	public static void setPosition(Position position) {
+		setPosition(position.value);
+	}
 
-        // setPercentOutput(goingUp ? UP_ACCEL * 10 : -DOWN_ACCEL * 10);
-        timer.reset();
-        timer.start();
-    }
+	/**
+	 * Sets the elevator to the entered value
+	 *
+	 * @param targetPosition: desired elevator value
+	 */
+	public static void setPosition(double targetPosition) {
+		setPosition = targetPosition;
+		goingUp = setPosition - getPosition() > 0;
+		moving = true;
+	}
 
-    /**
-     * moves the elevator at a speed (percent output)
-     *
-     * @param speed: speed of the elevator (-1.0 to 1.0)
-     */
-    public static void setPercentOutput(double speed) {
-        elevator.set(speed);
-    }
+	/**
+	 * Moves the elevator at a speed (percent output).
+	 *
+	 * @param speed: Speed of the elevator (-1.0 to 1.0).
+	 */
+	public static void setPercentOutput(double speed) {
+		elevator.set(speed);
+	}
 
-    // /**
-    // * Prevents the user from going past the max/min value of the elevator
-    // */
-    // private static void limitPosition() {
-    // setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
-    // setPosition = Math.max(setPosition, zeroPosition);
-    // if (goingDown) {
-    // elevator.getPIDController().setReference(setPosition,
-    // ControlType.kSmartMotion);
-    // } else {
-    // elevator.getPIDController().setReference(setPosition,
-    // ControlType.kSmartMotion, 0, gravityFF * 2);
-    // }
-    // }
+	// /**
+	// * Prevents the user from going past the max/min value of the elevator.
+	// */
+	// private static void limitPosition() {
+	// setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
+	// setPosition = Math.max(setPosition, zeroPosition);
+	// if (goingDown) {
+	// elevator.getPIDController().setReference(setPosition,
+	// ControlType.kSmartMotion);
+	// } else {
+	// elevator.getPIDController().setReference(setPosition,
+	// ControlType.kSmartMotion, 0, gravityFF * 2);
+	// }
+	// }
 
-    // /**
-    // * Prevents the user from going past the maximum value of the elevator
-    // */
-    // private static void limitPositionOverride() {
-    // setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
-    // elevator.getPIDController().setReference(setPosition,
-    // ControlType.kSmartMotion, 0, gravityFF);
-    // }
+	// /**
+	// * Prevents the user from going past the maximum value of the elevator.
+	// */
+	// private static void limitPositionOverride() {
+	// setPosition = Math.min(setPosition, MAX_POSITION + zeroPosition);
+	// elevator.getPIDController().setReference(setPosition,
+	// ControlType.kSmartMotion, 0, gravityFF);
+	// }
 
-    /**
-     * @return the position of the elevator
-     */
-    public static double getPosition() {
-        return elevatorEncoder.getPosition()/* - zeroPosition */; // removed to try to fix problem switch back if manual
-                                                                  // override does a bad
-    }
+	/**
+	 * @return Position of the elevator.
+	 */
+	public static double getPosition() {
+		return elevatorEncoder.getPosition()/* - zeroPosition */; // removed to try to fix problem switch back if manual
+																	// override does a bad
+	}
 
-    /**
-     * @return difference in encoder position since last check
-     */
-    public static double getPositionDiff() {
-        double currentPosition = getPosition();
-        double positionDiff = currentPosition - prevPosition;
-        prevPosition = currentPosition;
-        return positionDiff;
-    }
+	/**
+	 * @return Distance in rotations needed to fully stop with given velocity and
+	 *         acceleration.
+	 */
+	public static double getStopDistace() {
+		return -velocity / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
+	}
 
-    /**
-     * @return difference in time since last check (in seconds)
-     */
-    public static double getTimeDiff() {
-        double timeDiff = timer.get();
-        timer.stop();
-        timer.reset();
-        timer.start();
-        return timeDiff;
-    }
+	/**
+	 * @return True if the elevator is within deadband of its set value.
+	 */
+	public static boolean atSetPosition() {
+		return Math.abs(elevatorEncoder.getPosition() - setPosition) < DEADBAND;
+	}
 
-    /**
-     * @return true if the elevator is within deadband of its set value
-     */
-    public static boolean atSetPosition() {
-        return Math.abs(elevatorEncoder.getPosition() - setPosition) < DEADBAND;
-    }
+	/**
+	 * Sets the elevator set value to its current value.
+	 */
+	public static void stop() {
+		// setPosition(getPosition()); // if this is bad change it back
+		// setPosition = elevatorEncoder.getPosition();
+		// setPosition(setPosition);
+		elevatorPid.setReference(0, ControlType.kVelocity);
+	}
 
-    /**
-     * sets the elevator set value to its current value
-     */
-    public static void stop() {
-        setPosition(getPosition()); // if this is bad change it back
-        // setPosition = elevatorEncoder.getPosition();
-        // setPosition(setPosition);
-    }
+	/**
+	 * Sets the elevator set value to its current value.
+	 */
+	public static double getCurrent() {
+		return elevator.getOutputCurrent();
+	}
 
-    /**
-     * sets the elevator set value to its current value
-     */
-    public static double getCurrent() {
-        return elevator.getOutputCurrent();
-    }
+	/**
+	 * @return Set point of the elevator.
+	 */
+	public static double getSetPosition() {
+		return setPosition;// - zeroPosition;
+	}
 
-    /**
-     * @return the set point of the elevator
-     */
-    public static double getSetPosition() {
-        return setPosition;// - zeroPosition;
-    }
+	/**
+	 * @return True if the elevator is above the stationary stage.
+	 */
+	public static boolean aboveStageThreshold() {
+		return elevatorEncoder.getPosition() > STAGE_THRESHOLD + zeroPosition;
+	}
 
-    /**
-     * @return true if the elevator is above the stationary stage
-     */
-    public static boolean aboveStageThreshold() {
-        return elevatorEncoder.getPosition() > STAGE_THRESHOLD + zeroPosition;
-    }
+	/**
+	 * Sets the current elevator position to the new zero.
+	 */
+	public static void resetEncoder() {
+		// elevator.setEncPosition(0);
+		zeroPosition = elevatorEncoder.getPosition();
+		setPosition = Position.ELEVATOR_FLOOR.value;
+		setPosition(setPosition);
+	}
 
-    /**
-     * Sets the current elevator position to the new zero
-     */
-    public static void resetEncoder() {
-        // elevator.setEncPosition(0);
-        zeroPosition = elevatorEncoder.getPosition();
-        setPosition = Position.ELEVATOR_FLOOR.value;
-        setPosition(setPosition);
-    }
+	/**
+	 * @return Belt speed in inches per second.
+	 */
+	public static double getBeltVelocity() {
+		final double kNeoToBelt = 16.213 / 60 /* min to sec */ / 25.4 /* mm to inch */;
+		return kNeoToBelt * getVelocity();
+	}
 
-    /**
-     * @return belt speed in inches per second
-     */
-    public static double getBeltVelocity() {
-        final double kNeoToBelt = 16.213 / 60 /* min to sec */ / 25.4 /* mm to inch */;
-        return kNeoToBelt * elevatorEncoder.getVelocity();
-    }
+	// /**
+	// * Zeros the elevator if Hal Sensor is triggered, must be ran in robotPeriodic.
+	// */
+	// public static void checkHalSensor() {
+	// if (!halSensor.get()) {
+	// zeroPosition = elevatorEncoder.getPosition() - 8.6; //9.6
+	// setPosition = setPosition + zeroPosition;
+	// limitPosition();
+	// }
+	// }
 
-    // /**
-    // * Zeros the elevator if Hal Sensor is triggered, must be ran in robotPeriodic
-    // */
-    // public static void checkHalSensor() {
-    // if (!halSensor.get()) {
-    // zeroPosition = elevatorEncoder.getPosition() - 8.6; //9.6
-    // setPosition = setPosition + zeroPosition;
-    // limitPosition();
-    // }
-    // }
+	public static double getVelocity() {
+		return elevatorEncoder.getVelocity();
+	}
 
-    public static double getVelocity() {
-        return elevatorEncoder.getVelocity();
-    }
+	public static double getTemperature() {
+		return elevator.getMotorTemperature();
+	}
 
-    public static double getTemperature() {
-        return elevator.getMotorTemperature();
-    }
-
-    public static double getPercentOutput() {
-        return elevator.getAppliedOutput();
-    }
+	public static double getPercentOutput() {
+		return elevator.getAppliedOutput();
+	}
 }
