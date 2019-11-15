@@ -166,27 +166,25 @@ public class Robot extends TimedRobot {
 
         DriverControls.driverControls();
         OperatorControls.operatorControls();
+        Elevator.update();
+        PrettyPrint.print();
     }
 
     @Override
     public void testInit() {
         initLog();
-        Elevator.startThread();
         Arm.setPosition(STARTING_CONFIG);
     }
 
     @Override
     public void testPeriodic() {
-        DriverControls.driverControls();
-        OperatorControls.operatorControls();
-        PrettyPrint.print();
+        
     }
 
     @Override
     public void disabledInit() {
         // LineSensor.stopThread();
         Drivetrain.setBrakeMode(false);
-        Elevator.stopThread();
         // Elevator.elevator.setIdleMode(IdleMode.kCoast);
         Climber.back.setIdleMode(IdleMode.kBrake);
         inEndOfMatch = false;
