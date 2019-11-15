@@ -1,7 +1,8 @@
 package frc.robot.subsystems;
 
 import com.revrobotics.CANEncoder;
-import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANPIDController;
+import com.revrobotics.CANSparkMax; 
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
@@ -13,7 +14,7 @@ public class Elevator {
 
     public static final CANSparkMax elevator;
     public static final CANEncoder elevatorEncoder;
-    // public static final CANPIDController pidController;
+    public static final CANPIDController pidController;
     // public static final DigitalInput halSensor;
 
     private static Timer timer;
@@ -60,23 +61,14 @@ public class Elevator {
 
         elevatorEncoder = new CANEncoder(elevator);
         // halSensor = new DigitalInput(3);
+        pidController = new CANPIDController(elevator);
 
         elevator.setEncPosition(0);
         setPosition = elevatorEncoder.getPosition();
         prevPosition = elevatorEncoder.getPosition();
         zeroPosition = elevatorEncoder.getPosition();
 
-        thread = new Notifier(() -> update());
-
         timer = new Timer();
-    }
-
-    public static void startThread() {
-        thread.startPeriodic(0.02);
-    }
-
-    public static void stopThread() {
-        thread.stop();
     }
 
     /**
