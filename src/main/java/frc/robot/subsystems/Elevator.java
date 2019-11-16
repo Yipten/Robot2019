@@ -167,7 +167,7 @@ public class Elevator {
 	 *         acceleration.
 	 */
 	public static double getStopDistace() {
-		return -velocity / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
+		return -Math.pow(velocity, 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
 	}
 
 	/**
