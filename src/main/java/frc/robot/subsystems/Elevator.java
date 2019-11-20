@@ -83,29 +83,34 @@ public class Elevator {
 	 * Updates speed of elevator based on the target position.
 	 */
 	public static void update() {
-		if (moving) {
-			// reached set position
-			if (Math.abs(setPosition - getPosition()) <= DEADBAND) {
-				velocity = 0.0;
-				moving = false;
-			}
-			// time to slow down
-			else if (Math.abs(setPosition - getPosition()) <= getStopDistace()) {
-				velocity -= (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
-				if (velocity <= 0.0) {
-					velocity = 0.0;
-					moving = false;
-				}
-			// slower than max velocity
-			} else if (velocity < MAX_VELOCITY)
-				velocity += (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
-			// at max velocity
-			else if (velocity > MAX_VELOCITY)
-				velocity = MAX_VELOCITY;
-		} else
+		// if (moving) {
+		// // reached set position
+		// if (Math.abs(setPosition - getPosition()) <= DEADBAND) {
+		// velocity = 0.0;
+		// moving = false;
+		// }
+		// // time to slow down
+		// else if (Math.abs(setPosition - getPosition()) <= getStopDistace()) {
+		// velocity -= (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
+		// if (velocity <= 0.0) {
+		// velocity = 0.0;
+		// moving = false;
+		// }
+		// // slower than max velocity
+		// } else if (velocity < MAX_VELOCITY)
+		// velocity += (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
+		// // at max velocity
+		// else if (velocity > MAX_VELOCITY)
+		// velocity = MAX_VELOCITY;
+		// } else
+		// velocity = 0.0;
+		// elevatorPid.setReference(goingUp ? velocity : -velocity,
+		// ControlType.kSmartVelocity); // TODO: try using Smart
+		// // Velocity
+
+		if (Math.abs(setPosition - getPosition()) <= getStopDistace() && velocity != 0.0)
 			velocity = 0.0;
-		elevatorPid.setReference(goingUp ? velocity : -velocity, ControlType.kSmartVelocity); // TODO: try using Smart
-																							// Velocity
+		elevatorPid.setReference(velocity, ControlType.kSmartVelocity);
 	}
 
 	public static double getSetVelocity() {
@@ -133,6 +138,10 @@ public class Elevator {
 	public static void setPosition(double targetPosition) {
 		setPosition = targetPosition;
 		goingUp = setPosition - getPosition() > 0;
+		// if (Math.abs(setPosition - getPosition()) <= getStopDistace())
+		velocity = goingUp ? MAX_VELOCITY : -MAX_VELOCITY;
+		// else
+		// velocity = 0.0;
 		moving = true;
 	}
 
@@ -182,7 +191,7 @@ public class Elevator {
 	 *         acceleration.
 	 */
 	public static double getStopDistace() {
-		return Math.pow(velocity, 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
+		return Math.pow(getVelocity(), 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
 	}
 
 	/**
