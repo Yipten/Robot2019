@@ -6,6 +6,7 @@ import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 import com.revrobotics.ControlType;
+import com.revrobotics.CANPIDController.AccelStrategy;
 
 import edu.wpi.first.wpilibj.Notifier;
 
@@ -23,9 +24,9 @@ public class Elevator {
 
 	// public static final double gravityFF = 0.05 * 12; // .375
 
-	private static final double UP_ACCEL = 1000;
-	private static final double DOWN_ACCEL = 1000;
-	private static final double MAX_VELOCITY = 1000;
+	private static final double UP_ACCEL = 10_000.0;
+	private static final double DOWN_ACCEL = 10_000.0;
+	private static final double MAX_VELOCITY = 1000.0;
 	private static final double STAGE_THRESHOLD = 30.0;
 	public static final double MAX_POSITION = 47.5;
 	private static final double DEADBAND = 0.26;
@@ -62,10 +63,13 @@ public class Elevator {
 		elevatorEncoder = new CANEncoder(elevator);
 		// halSensor = new DigitalInput(3);
 		elevatorPid = new CANPIDController(elevator);
-		elevatorPid.setP(0.001);
-		elevatorPid.setI(0.0);
-		elevatorPid.setD(0.0);
+		elevatorPid.setP(0.000_02);
+		elevatorPid.setI(0.000_000_1);
+		elevatorPid.setD(0.000_05);
 		elevatorPid.setFF(0.0);
+		elevatorPid.setSmartMotionAccelStrategy(AccelStrategy.kTrapezoidal, 0);
+		elevatorPid.setSmartMotionMaxAccel(UP_ACCEL, 0);
+		elevatorPid.setSmartMotionMaxVelocity(MAX_VELOCITY, 0);
 
 		elevator.setEncPosition(0);
 		setPosition = 0;
@@ -79,22 +83,33 @@ public class Elevator {
 	 * Updates speed of elevator based on the target position.
 	 */
 	public static void update() {
-		if (moving)
+		if (moving) {
+			// reached set position
+			if (Math.abs(setPosition - getPosition()) <= DEADBAND) {
+				velocity = 0.0;
+				moving = false;
+			}
 			// time to slow down
-			if (Math.abs(setPosition - getPosition()) <= getStopDistace()) {
+			else if (Math.abs(setPosition - getPosition()) <= getStopDistace()) {
 				velocity -= (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
 				if (velocity <= 0.0) {
 					velocity = 0.0;
 					moving = false;
 				}
-				// slower than max velocity
+			// slower than max velocity
 			} else if (velocity < MAX_VELOCITY)
 				velocity += (goingUp ? UP_ACCEL : DOWN_ACCEL) * 0.02;
 			// at max velocity
 			else if (velocity > MAX_VELOCITY)
 				velocity = MAX_VELOCITY;
-		elevatorPid.setReference(goingUp ? velocity : -velocity, ControlType.kVelocity); // TODO: try using Smart
+		} else
+			velocity = 0.0;
+		elevatorPid.setReference(goingUp ? velocity : -velocity, ControlType.kSmartVelocity); // TODO: try using Smart
 																							// Velocity
+	}
+
+	public static double getSetVelocity() {
+		return velocity;
 	}
 
 	public static boolean isMoving() { // TODO: maybe won't actually need this
@@ -167,7 +182,7 @@ public class Elevator {
 	 *         acceleration.
 	 */
 	public static double getStopDistace() {
-		return -Math.pow(velocity, 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
+		return Math.pow(velocity, 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
 	}
 
 	/**
@@ -227,7 +242,8 @@ public class Elevator {
 	}
 
 	// /**
-	// * Zeros the elevator if Hal Sensor is triggered, must be ran in robotPeriodic.
+	// * Zeros the elevator if Hal Sensor is triggered, must be ran in
+	// robotPeriodic.
 	// */
 	// public static void checkHalSensor() {
 	// if (!halSensor.get()) {
