@@ -33,8 +33,9 @@ public class OperatorControls extends PS4Controller {
         // Elevator Controls
         // override
         if (getRightStickButton()) {
-            double speed = getRightYAxis();
-            Elevator.setPercentOutput(-speed);//divide by 2 normal override
+            double speed = -getRightYAxis();
+            // Elevator.setPercentOutput(-speed);//divide by 2 normal override
+            Elevator.setVelocity(speed);
             elevatorOverridden = true;
         } else {
             if (elevatorOverridden) {

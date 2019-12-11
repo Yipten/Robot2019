@@ -201,8 +201,8 @@ public class Robot extends TimedRobot {
 	 */
 	private void initLog() {
 		PrettyPrint.removeAll();
-		PrettyPrint.put("Elev Setpoint", Elevator::getSetPosition);
-		PrettyPrint.put("Elev Position", Elevator::getPosition);
+		// PrettyPrint.put("Elev Setpoint", Elevator::getSetPosition);
+		// PrettyPrint.put("Elev Position", Elevator::getPosition);
 		// PrettyPrint.put("Elev Output", Elevator::getPercentOutput);
 		PrettyPrint.put("Elev Set RPM", Elevator::getSetVelocity);
 		PrettyPrint.put("Elev RPM", Elevator::getVelocity);

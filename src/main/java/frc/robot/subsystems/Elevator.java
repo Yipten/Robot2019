@@ -29,9 +29,8 @@ public class Elevator {
 
     // public static final double gravityFF = 0.05 * 12; // .375
 
-    private static final double UP_ACCEL = 10_000.0;
-    private static final double DOWN_ACCEL = 10_000.0;
-    private static final double MAX_VELOCITY = 10_000.0;
+    private static final double MAX_ACCEL = 10_000.0;
+    private static final double MAX_VELOCITY = 3_000.0;
     private static final double STAGE_THRESHOLD = 30.0;
     public static final double MAX_POSITION = 47.5;
     private static final double DEADBAND = 0.26;
@@ -68,15 +67,15 @@ public class Elevator {
         elevatorEncoder = new CANEncoder(elevator);
         // halSensor = new DigitalInput(3);
         velocityPid = new CANPIDController(elevator);
-        velocityPid.setP(0.000_02);
-        velocityPid.setI(0.000_000_1);
-        velocityPid.setD(0.000_05);
+        velocityPid.setP(0.000_5);
+        velocityPid.setI(0.000_002);
+        velocityPid.setD(0.000_7);
         velocityPid.setFF(0.0);
         velocityPid.setSmartMotionAccelStrategy(AccelStrategy.kTrapezoidal, 0);
-        velocityPid.setSmartMotionMaxAccel(UP_ACCEL, 0);
+        velocityPid.setSmartMotionMaxAccel(MAX_ACCEL, 0);
         velocityPid.setSmartMotionMaxVelocity(MAX_VELOCITY, 0);
 
-        positionPid = new PIDController(3000.0, 0.0, 0.0, new PIDSource() {
+        positionPid = new PIDController(50.0, 0.0005, 0, new PIDSource() {
             private PIDSourceType pidSourceType = PIDSourceType.kDisplacement;
 
             @Override
@@ -116,14 +115,19 @@ public class Elevator {
      * Updates speed of elevator based on the target position.
      */
     public static void update() {
-        // if (Math.abs(setPosition - getPosition()) <= getStopDistace() && velocity != 0.0)
-        //     velocity = 0.0;
+        // if (Math.abs(setPosition - getPosition()) <= getStopDistace() && velocity !=
+        // 0.0)
+        // velocity = 0.0;
         positionPid.setSetpoint(setPosition);
         velocityPid.setReference(velocity, ControlType.kSmartVelocity);
     }
 
     public static double getSetVelocity() {
         return velocity;
+    }
+
+    public static void setVelocity(double v) {
+        velocity = v * MAX_VELOCITY;
     }
 
     public static boolean isMoving() { // TODO: maybe won't actually need this
@@ -196,11 +200,11 @@ public class Elevator {
     }
 
     // /**
-    //  * @return Distance in rotations needed to fully stop with given velocity and
-    //  *         acceleration.
-    //  */
+    // * @return Distance in rotations needed to fully stop with given velocity and
+    // * acceleration.
+    // */
     // public static double getStopDistace() {
-    //     return Math.pow(getVelocity(), 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
+    // return Math.pow(getVelocity(), 2) / (2 * (goingUp ? UP_ACCEL : DOWN_ACCEL));
     // }
 
     /**
